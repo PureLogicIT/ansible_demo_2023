@@ -1,0 +1,86 @@
+all:
+  hosts:
+    pl_rhel_demo0:
+      ansible_host: 192.168.254.232
+      docker_host: 1
+      rabbit_extra_hosts:
+      - "rabbit2:192.168.254.94" 
+      - "rabbit3:192.168.254.107" 
+      mongo_extra_hosts:
+      - "mongo2:192.168.254.94" 
+      - "mongo3:192.168.254.107" 
+    pl_rhel_demo1:
+      ansible_host: 192.168.254.107
+      docker_host: 2
+      rabbit_extra_hosts:
+      - "rabbit1:192.168.254.232" 
+      - "rabbit3:192.168.254.94" 
+      mongo_extra_hosts:
+      - "mongo1:192.168.254.232" 
+      - "mongo3:192.168.254.94" 
+    pl_rhel_demo2:
+      ansible_host: 192.168.254.94
+      ansible_python_interpreter: /usr/bin/python3
+      docker_host: 3
+      rabbit_extra_hosts:
+      - "rabbit1:192.168.254.232" 
+      - "rabbit2:192.168.254.107" 
+      mongo_extra_hosts:
+      - "mongo1:192.168.254.232" 
+      - "mongo2:192.168.254.107" 
+    fortigate:
+      ansible_host: 192.168.1.59
+      ansible_user: "{{ vault_forti_username }}"
+      ansible_password: "{{ vault_forti_password }}"
+      ansible_httpapi_port: 4434
+      ansible_httpapi_use_ssl: true
+      ansible_httpapi_validate_certs: false
+      ansible_network_os: fortinet.fortios.fortios
+
+  vars:
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="ssh -W %h:%p -q ubuntu@3.234.48.79"'
+    cloud_provider: 'aws'
+  children:
+    awsfg:
+      hosts:
+        fortigate:
+    rhel:
+      vars:
+        ansible_user: ec2-user
+        redhat_username: "{{ vault_redhat_username }}"
+        redhat_password: "{{ vault_redhat_password }}"
+        mongo_username: ph_rhel_demo
+        mongo_password: "{{vault_mongo_password}}"
+        mongo_db: pl_rhel_demo
+        mongo_replica_set: pl_rhel_demo
+        mongo_hosts: mongo1:27017,mongo2:27017,mongo3:27017
+        rabbitmq_hosts: rabbit1,rabbit2,rabbit3
+        rabbitmq_username: pl_rhel_demo
+        rabbitmq_password: "{{vault_rabbitmq_password}}"
+        rabbitmq_queue: Image_generator_Queue
+        rabbitmq_erlang: "{{ vault_rabbitmq_erlang }}"
+        all_hosts:
+        - "rabbit1:192.168.254.232" 
+        - "rabbit2:192.168.254.94" 
+        - "rabbit3:192.168.254.107" 
+        - "mongo1:192.168.254.232" 
+        - "mongo2:192.168.254.94" 
+        - "mongo3:192.168.254.107" 
+      hosts:
+        pl_rhel_demo0:
+        pl_rhel_demo1:
+        pl_rhel_demo2: 
+    az1:
+      hosts:
+        pl_rhel_demo0:
+        pl_rhel_demo1:
+    az2:
+      hosts:
+        pl_rhel_demo2:
+    primary:
+      hosts:
+        pl_rhel_demo0:
+    secondary:
+      hosts:
+        pl_rhel_demo1:
+        pl_rhel_demo2:

@@ -1,0 +1,74 @@
+---
+- hosts: awsfg
+  collections:
+    - fortinet.fortios
+  connection: httpapi
+
+  tasks:
+    - name: Configure server load balancing health monitors.
+      fortios_firewall_ldb_monitor:
+        state: "present"
+        firewall_ldb_monitor:
+          interval: "10"
+          name: DEMO_HTTP_HC
+          retry: "2"
+          timeout: "1"
+          type: "http"
+    - name: Configure a virtual server
+      fortinet.fortios.fortios_firewall_vip:
+        state: "present"
+        firewall_vip:
+          extip: 192.168.1.59
+          extintf: "port1"
+          extport: 443
+          type: server-load-balance
+          http_ip_header: enable
+          http_multiplex: enable
+          http_redirect: enable
+          ldb_method: "static"
+          monitor:
+          - name: DEMO_HTTP_HC
+          name: "Demo_Ansible"
+          persistence: none
+          realservers:
+          - ip: "{{ hostvars['pl_rhel_demo0']['ansible_host']}}"
+            max_connections: "0"
+            port: "80"
+            status: "active"
+            type: "ip"
+            weight: "1"
+          - ip: "{{ hostvars['pl_rhel_demo1']['ansible_host']}}"
+            max_connections: "0"
+            port: "80"
+            status: "active"
+            type: "ip"
+            weight: "1"
+          - ip: "{{ hostvars['pl_rhel_demo2']['ansible_host']}}"
+            max_connections: "0"
+            port: "80"
+            status: "active"
+            type: "ip"
+            weight: "1"
+          server_type: https
+          ssl_certificate: democrt.pem
+          ssl_mode: half
+    - name: Configure Outbound Firewall
+      fortios_firewall_policy:
+        vdom: root
+        state: present
+        firewall_policy:
+          action: accept
+          dstaddr:
+          - name: Demo_Ansible
+          dstintf:
+          - name: port2
+          nat: enable
+          inspection_mode: proxy
+          policyid: 10
+          service:
+          - name: ALL
+          srcaddr:
+          - name: all
+          srcintf:
+          - name: port1
+          schedule: always

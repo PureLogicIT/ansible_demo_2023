@@ -1,0 +1,70 @@
+- name: Register and auto-subscribe to available content in Red Hat
+  become: true
+  community.general.redhat_subscription:
+    state: present
+    username: "{{ redhat_username }}"
+    password: "{{ redhat_password }}"
+    auto_attach: true
+  ignore_errors: true 
+- name: Upgrade all packages
+  become: true
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+- name: Install the latest version of Python
+  become: true
+  ansible.builtin.dnf:
+    name:
+    - python39
+- name: Install pip
+  become: true
+  ansible.builtin.dnf:
+    name:
+    - python3-pip
+  when: ansible_distribution == "RedHat" and ansible_distribution_major_version == "9"
+- name: Install the latest version of Podman
+  become: true
+  ansible.builtin.dnf:
+    name:
+    - podman
+    - podman-docker
+    state: latest
+- name: pip upgrade pip
+  become: true
+  ansible.builtin.pip:
+    name: pip
+    state: latest
+- name: pip install docker-compose
+  become: true
+  ansible.builtin.pip:
+    name: docker-compose
+    extra_args: --user
+- name: Enable and start podman socket service for docker-compose compataiblity
+  become: true
+  ansible.builtin.systemd:
+    name: podman.socket
+    state: started
+- name: Autoremove unneeded packages installed as dependencies
+  become: true
+  ansible.builtin.dnf:
+    autoremove: yes
+- name: Define first unprivileged port in sysctl.conf
+  become: true
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_unprivileged_port_start
+    value: 80
+    sysctl_set: yes
+    state: present
+    reload: yes
+- name: Pull docker images
+  become: true
+  containers.podman.podman_image:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - registry.hub.docker.com/pljlevac/rhel-demo-ui:1.1
+    - docker.io/bitnami/tensorflow-serving:2
+    - docker.io/bitnami/tensorflow-resnet:2
+    - registry.hub.docker.com/pljlevac/rhel-demo-worker:1.0
+    - registry.hub.docker.com/library/mongo:6.0.4
+    - registry.hub.docker.com/library/rabbitmq:3.11.8-management

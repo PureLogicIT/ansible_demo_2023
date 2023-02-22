@@ -1,0 +1,9 @@
+#Perform the RHEL 8 to RHEL 9 upgrade - using roles
+- hosts: rhel
+  vars:
+    current_version: 8.7
+    target_version: 9.0
+  tasks:
+    - name: Prepare servers for demo
+      include_role:
+        name: initialize-demo-env

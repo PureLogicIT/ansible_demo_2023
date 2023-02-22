@@ -1,0 +1,14 @@
+---
+# tasks file for rhel-upgrade
+- name: Pre-check for RHEL upgrade
+  become: true
+  ansible.builtin.shell: leapp preupgrade --target {{ target_version }}
+
+- name: Preform RHEL upgrade
+  become: true
+  ansible.builtin.shell: leapp upgrade --target {{ target_version }}
+
+- name: Reboot (this may take several minutes)
+  become: true
+  ansible.builtin.reboot:
+    reboot_timeout: 600

@@ -1,0 +1,15 @@
+# Stop and kill all services for testing
+- name: Stop the apps
+  hosts: rhel
+  tasks:
+  - name: Stop existing services
+    become: true
+    community.docker.docker_compose:
+      project_src: /root/demo
+      state: absent
+      remove_orphans: true
+      remove_volumes: true
+    register: output
+    ignore_errors: true
+
+

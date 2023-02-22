@@ -1,0 +1,71 @@
+---
+# tasks file for prepare-rhel-upgrade
+
+- name: Remove the /root/tmp_leapp_py3 directory if it is present 
+  ansible.builtin.file:
+    path: /root/tmp_leapp_py3/
+    state: absent
+  become: true
+  
+- name: Get current Subsription
+  ansible.builtin.shell: subscription-manager list --installed
+  register: subscription
+  become: true
+
+  # TODO check if subscription is active
+  # -------------------------------------------+
+  #  Installed Product Status
+  #+-------------------------------------------+
+  #Product Name:   Red Hat Enterprise Linux for x86_64
+  #Product ID:     479
+  #Version:        8.7
+  #Arch:           x86_64
+  #Status:         Subscribed
+  #Status Details:
+  #Starts:         02/02/2023
+  #Ends:           02/01/2024
+
+- name: Allow subscription-manager to enable repos
+  ansible.builtin.shell: subscription-manager config --rhsm.manage_repos=1
+  become: true
+
+- name: Add required repositories
+  ansible.builtin.shell: subscription-manager repos --enable {{ item }}
+  loop: "{{ required_repos}}"
+  become: true
+
+- name: Lock RHEL to latest minor release
+  ansible.builtin.shell: subscription-manager release --set {{ current_version }} 
+  become: true
+
+- name: Add AWS repos
+  become: true
+  ansible.builtin.shell: dnf config-manager --set-enabled rhui-client-config-server-8
+  when: cloud_provider == 'aws'
+
+- name: Install AWS rhui client
+  become: true
+  ansible.builtin.dnf:
+    name:
+    - rh-amazon-rhui-client
+    - leapp-rhui-aws
+    state: latest
+  when: cloud_provider == 'aws'
+    #- name: Clear package version locks
+    #ansible.builtin.shell: dnf versionlock clear
+
+- name: Upgrade all packages
+  become: true
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+
+- name: Reboot (this may take several minutes)
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+  become: true
+
+- name: Install Leapp
+  ansible.builtin.dnf:
+    name: leapp-upgrade
+  become: true

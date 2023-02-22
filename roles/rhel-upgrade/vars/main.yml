@@ -1,0 +1,9 @@
+---
+# vars file for rhel-upgrade
+rhel8_repos:
+  - ansible-2-for-rhel-8-rhui-rpms
+  - rhel-8-appstream-rhui-rpms
+  - rhel-8-baseos-rhui-rpms
+rhel9_repos:
+  - rhel-9-appstream-rhui-rpms
+  - rhel-9-baseos-rhui-rpms

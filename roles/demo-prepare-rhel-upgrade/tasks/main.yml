@@ -1,0 +1,45 @@
+---
+# defaults file for demo-prepare-rhel-upgrade
+
+- name: Install missing applications
+  become: true
+  ansible.builtin.dnf:
+    name: "{{ missing_apps }}"
+    state: present
+
+- name: Disable Root Login
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: 'PermitRootLogin'
+    line: PermitRootLogin no
+
+- name: Check if firewalld is configred
+  become: true
+  ansible.builtin.stat:
+    path: /etc/firewalld/firewalld.conf
+  register: firewalld
+
+- name: Firewalld Configuration AllowZoneDrifting Is Unsupported
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/firewalld/firewalld.conf
+    regexp: '^AllowZoneDrifting='
+    line: AllowZoneDrifting=no
+  when: firewalld.stat.exists
+
+- name: ensures /var/log/leapp/ dir exists
+  become: true
+  file: 
+    path: /var/log/leapp
+    state: directory
+
+- name: Answer pre-upgrade questions
+  become: true
+  ansible.builtin.copy:
+    src: answerfile.userchoices
+    dest: /var/log/leapp/answerfile.userchoices
+    owner: root
+    group: root
+    mode: '0644'
+

@@ -1,0 +1,116 @@
+version: '3.1'
+
+services:
+  test:
+    image: nginx
+    privileged: true
+    #ports:
+    #- 80:80
+    extra_hosts:
+      {{ all_hosts }}
+    volumes:
+    - "./index.html:/usr/share/nginx/html/index.html"
+  ui:
+    image: registry.hub.docker.com/pljlevac/rhel-demo-ui:1.1
+    #image: nginx
+    privileged: true
+    depends_on:
+      - rabbitmq
+      - mongo
+    environment:
+      MongoDbConnection: mongodb://{{mongo_hosts}}/{{mongo_db}}
+      RabbitMQConnection: {{ rabbitmq_hosts }}
+      RabbitMQUser: {{ rabbitmq_username }}
+      RabbitMQPassword: ${RABBITMQ_PASSWORD}
+    extra_hosts:
+      {{ all_hosts }}
+    ports:
+      - 80:5211
+  #AI container 1
+  tensorflow-serving:
+    image: docker.io/bitnami/tensorflow-serving:2
+    privileged: true
+    ports:
+      - 8500:8500
+      - 8501:8501
+    volumes:
+      - "tensorflow_serving_data:/bitnami"
+      - "./model-data:/bitnami/model-data"
+  #AI container 2
+  tensorflow-resnet:
+    image: docker.io/bitnami/tensorflow-resnet:2
+    privileged: true
+    depends_on:
+      - tensorflow-serving
+    volumes:
+      - "tensorflow_resnet_data:/bitnami"
+      - "./model-data:/bitnami/model-data"
+  # Backend worker container
+  rhel-demo-worker:
+    image: registry.hub.docker.com/pljlevac/rhel-demo-worker:1.0
+    restart: always
+    depends_on:
+      - rabbitmq
+      - mongo
+      - tensorflow-serving
+    environment:
+      RABBITMQ_HOST: {{ rabbitmq_hosts }}
+      RABBITMQ_USERNAME: {{ rabbitmq_username }}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_QUEUE: {{ rabbitmq_queue }}
+      MONGODB_CONNECTION_STRING: mongodb://{{ mongo_hosts }}/{{ mongo_db }}?replicaSet={{ mongo_replica_set }}
+      MONGODB_HOST: mongo
+      MONGODB_USERNAME: {{ mongo_username }}
+      MONGODB_PASSWORD: ${MONGO_PASSWORD}
+      MONGODB_DB: {{ mongo_db }}
+      SERVER_URL: http://tensorflow-serving:8501
+    extra_hosts:
+      {{ all_hosts }}
+  #Database container
+  mongo:
+    image: registry.hub.docker.com/library/mongo:6.0.4
+    hostname: mongo{{ docker_host }}
+    restart: always
+    privileged: true
+    #environment:
+    #  MONGO_INITDB_ROOT_USERNAME: {{ mongo_username }}
+    #  MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    extra_hosts:
+      {{ mongo_extra_hosts }}
+    ports:
+      - 27017:27017
+    volumes:
+      - mongo_data:/data/db
+    command: mongod --replSet {{ mongo_replica_set }} --bind_ip 0.0.0.0
+
+  #clustering https://medium.com/@saurabh.singh0829/how-to-create-rabbitmq-cluster-in-docker-aws-linux-4b26a31f90bc
+  rabbitmq:
+    image: registry.hub.docker.com/library/rabbitmq:3.11.8-management
+    hostname: rabbit{{ docker_host }}
+    restart: always
+    privileged: true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5672"]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+    environment:
+      RABBITMQ_DEFAULT_USER: {{ rabbitmq_username }}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      #RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG}
+    extra_hosts:
+      {{ rabbit_extra_hosts }}
+    ports:
+      - 4369:4369
+      - 5671:5671
+      - 5672:5672
+      - 25672:25672
+      #- 80:15672
+    volumes:
+      - rabbit_data:/var/lib/rabbitmq
+      - "./.erlang.cookie:/var/lib/rabbitmq/.erlang.cookie"
+volumes:
+  mongo_data:
+  rabbit_data:
+  tensorflow_serving_data:
+  tensorflow_resnet_data:

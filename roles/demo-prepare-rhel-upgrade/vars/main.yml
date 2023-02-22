@@ -1,0 +1,4 @@
+---
+# vars file for demo-prepare-rhel-upgrade
+missing_apps:
+  - vdo

@@ -1,0 +1,120 @@
+#Build the configuration for the RHEL hosts
+- name: Configure the RHEL hosts
+  hosts: rhel
+  gather_facts: true
+  tasks:
+  - name: Copy docker-compose file
+    become: true
+    ansible.builtin.template:
+      src: docker-compose.yml
+      dest: /root/demo/
+  - name: Set environment variables
+    become: true
+    ansible.builtin.template:
+      src: env.j2
+      dest: /root/demo/.env
+  - name: Setup index.html
+    become: true
+    ansible.builtin.template:
+      src: index.html.j2
+      dest: /root/demo/index.html
+  - name: Setup ERLANG file for RabbitMQ
+    become: true
+    ansible.builtin.template:
+      src: erlang.cookie.j2
+      dest: /root/demo/.erlang.cookie
+      mode: '0400'
+  - name: Create model folder
+    become: true
+    ansible.builtin.file:
+      path: /root/demo/model-data/1
+      state: directory
+  - name: Upload ResNet50 model
+    become: true
+    ansible.builtin.unarchive:
+      src:  resnet_50_classification_1.tar.gz  
+      dest: /root/demo/model-data/1
+      creates: /root/demo/model-data/1/saved_model.pb
+  - name: Create and start services
+    become: true
+    community.docker.docker_compose:
+      project_src: /root/demo
+    register: output
+
+#Configure the Mongo DB and Rabbit MQ cluster primary hosts
+- name: Configure the Mongo DB cluster
+  hosts: primary
+  tasks:
+  - name: Cluster MongoDB
+    become: true
+    community.docker.docker_container_exec:
+      container: demo_mongo_1
+      argv:
+        - mongosh
+        - --eval
+        - "rs.initiate({ _id: \"{{mongo_replica_set}}\", members: [ {_id: 0, host: \"mongo1\"}, {_id: 1, host: \"mongo2\"},  {_id: 2, host: \"mongo3\"}]})"
+    ignore_errors: true
+
+  - name: Create MongoDB User
+    become: true
+    community.docker.docker_container_exec:
+      container: demo_mongo_1
+      argv:
+        - mongosh
+        - --eval
+        #- "use {{mongo_db}}; db.createUser({ user: \"{{mongo_username}}\", pwd: \"{{mongo_password}}\", roles: [{ role: \"readWrite\", db: \"{{mongo_db}}\" }], mechanisms:\"SCRAM-SHA-256\" })"
+        - "use {{mongo_db}}; db.createUser({ user: \"{{mongo_username}}\", pwd: \"{{mongo_password}}\", roles: [{ role: \"readWrite\", db: \"{{mongo_db}}\" }] })"
+
+#Configure the Mongo DB and Rabbit MQ cluster secondary hosts
+- name: Configure Rabbit MQ clustering
+  hosts: secondary
+  tasks:
+  - name: Stop RabbitMQ
+    become: true
+    community.docker.docker_container_exec:
+      container: demo_rabbitmq_1
+      argv:
+        - rabbitmqctl
+        - stop_app
+
+  - name: Reset RabbitMQ
+    become: true
+    community.docker.docker_container_exec:
+      container: demo_rabbitmq_1
+      argv:
+        - rabbitmqctl
+        - reset
+
+  - name: RabbitMQ Join Cluster
+    become: true
+    community.docker.docker_container_exec:
+      container: demo_rabbitmq_1
+      argv:
+        - rabbitmqctl
+        - join_cluster
+        - rabbit@rabbit1
+    ignore_errors: true
+
+  - name: Start RabbitMQ
+    become: true
+    community.docker.docker_container_exec:
+      container: demo_rabbitmq_1
+      argv:
+        - rabbitmqctl
+        - start_app
+
+- name: Delete queue
+  hosts: rhel
+  tasks:
+  - name: Delete queue
+    become: true
+    community.docker.docker_container_exec:
+      container: demo_rabbitmq_1
+      argv:
+        - rabbitmqadmin
+        - "--username={{ rabbitmq_username }}"
+        - "--password={{ rabbitmq_password }}"
+        - delete
+        - queue
+        - "name={{ rabbitmq_queue }}"
+    ignore_errors: true
